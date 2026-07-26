@@ -2,6 +2,11 @@ import yfinance as yf
 import datetime
 import pytz
 import os
+import resend
+
+# This pulls from the secure secrets you will set up in Step 4
+resend.api_key = os.environ.get("RESEND_API_KEY")
+RECEIVER_EMAIL = os.environ.get("RECEIVER_EMAIL")
 
 TICKERS = {
     "Nifty 50": "^NSEI",
@@ -14,6 +19,21 @@ TICKERS = {
     "SPMO": "SPMO",
     "QCOM": "QCOM"
 }
+
+def send_email_alert(message):
+    if not resend.api_key or not RECEIVER_EMAIL:
+        print("Error: Missing Resend credentials.")
+        return
+
+    try:
+        resend.Emails.send({
+            "from": "Stock Bot ",
+            "to": RECEIVER_EMAIL,
+            "subject": "🚨 Stock Market Alert: 2.5% Move Detected",
+            "text": message
+        })
+    except Exception as e:
+        print(f"Failed to send email: {e}")
 
 def main():
     tz_india = pytz.timezone('Asia/Kolkata')
@@ -45,17 +65,15 @@ def main():
 
             if abs(diff_pct) >= 2.5:
                 direction = "🔴 DOWN" if diff_pct < 0 else "🟢 UP"
-                alerts.append(f"{direction} **{name}**: {abs(diff_pct):.2f}% \n(Current: {current_price:.2f} | Yest: {yesterday_close:.2f})")
+                alerts.append(f"{direction} {name}: {abs(diff_pct):.2f}% \n(Current: {current_price:.2f} | Yest: {yesterday_close:.2f})")
                 
         except Exception as e:
             print(f"Error fetching {name}: {e}")
 
     if alerts:
         final_message = "The following assets have moved by 2.5% or more today:\n\n" + "\n\n".join(alerts)
-        # Create a markdown file with the alert text
-        with open("alert.md", "w") as f:
-            f.write(final_message)
-        print("Alert file generated for GitHub Issues!")
+        send_email_alert(final_message)
+        print("Email alert sent via Resend!")
     else:
         print("No assets crossed the 2.5% threshold.")
 
